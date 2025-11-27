@@ -29,37 +29,35 @@ def upi_lookup():
     if not upi_id:
         return jsonify({"error": "Missing parameter: upi_id"}), 400
 
-    # STEP 1 → UPI Validate
-    verify_url = f"https://api.upi.pro/upi/validate?vpa={upi_id}"
+    # STEP 1 → NEW WORKING UPI VERIFY API
+    verify_url = f"https://api.vpa.verification.plus/?vpa={upi_id}"
+
     try:
         resp = requests.get(verify_url, timeout=10).json()
     except:
-        return jsonify({"error": "UPI validation API failed"}), 500
+        return jsonify({"error": "UPI API request failed"}), 500
 
-    if not resp.get("success"):
-        return jsonify({
-            "upi_valid": False,
-            "message": "Invalid UPI ID"
-        }), 200
+    if resp.get("status") != "success":
+        return jsonify({"upi_valid": False, "message": "Invalid UPI ID"}), 200
 
     upi_name = resp.get("name")
-    vpa = resp.get("vpa")
+    ifsc = resp.get("ifsc")
 
-    # IFSC Code extract (like rahul@ybl → YBL0001234)
-    # Public API may not give IFSC, so second API try:
-    ifsc_url = f"https://ifsc.razorpay.com/{upi_id.split('@')[1].upper()}0000001"
-
-    try:
-        bank_raw = requests.get(ifsc_url, timeout=10).json()
-    except:
-        bank_raw = {"error": "Could not fetch bank details"}
+    # STEP 2 → Get Bank Address using Razorpay IFSC API
+    bank_details = {}
+    if ifsc:
+        try:
+            bank_details = requests.get(f"https://ifsc.razorpay.com/{ifsc}", timeout=10).json()
+        except:
+            bank_details = {"error": "Could not fetch bank details"}
 
     return jsonify({
         "success": True,
         "input_upi": upi_id,
         "upi_valid": True,
         "upi_name": upi_name,
-        "bank_details": bank_raw
+        "ifsc": ifsc,
+        "bank_details": bank_details
     }), 200
 
 
